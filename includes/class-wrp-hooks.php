@@ -62,31 +62,12 @@ class WRP_Hooks extends WRP_Main {
         add_filter('woocommerce_get_cart_item_from_session', array($this, 'wrp_get_cart_item_from_session'), 10, 3);
         add_filter('woocommerce_cart_item_price', array($this, 'wrp_cart_item_price'), 10, 3);
         add_filter('woocommerce_get_item_data', array($this, 'wrp_get_item_data'), 10, 2);
+        add_filter( 'woocommerce_loop_add_to_cart_link',array( $this, 'wrp_custom_loop_add_to_cart' ), 10, 2 );
+        add_filter( 'woocommerce_is_sold_individually', array( $this,'wrp_remove_all_quantity_fields'), 10, 2 );  
 
-    }
-
-    /**
-     * Callback for any script enqueue codes in admin
-     */
-    final public function wrp_admin_scripts_enqueue_callback(){
-        //Add admin css
-        wp_enqueue_style('wrp-stylesheet-admin', WRP_ABSURL . 'assets/css/admin.css', array(), WRP_VERSION);
-    }
-
-    /**
-     * Callback for any script enqueue codes in public
-     */
-    final public function wrp_scripts_enqueue_callback(){
-
-        //Add the WRP stylesheet
-        wp_enqueue_style('wrp-stylesheet-public', WRP_ABSURL . 'assets/css/style.css', array(), WRP_VERSION);
-
-        //Add the Wordpress Dashicons
-        wp_enqueue_style( 'dashicons' );
-
-        //Add the WRP script js file
-        wp_enqueue_script('wrp-script-public', WRP_ABSURL . 'assets/js/script.js', array(), WRP_VERSION, true);
-
+        //Action hook for API call on user date selection event.
+        add_action( 'wp_ajax_add_new_price', array( $this, 'wrp_get_new_price' ) );
+        add_action( 'wp_ajax_nopriv_add_new_price', array( $this, 'wrp_get_new_price' ) );
     }
 
     /**
@@ -122,6 +103,78 @@ class WRP_Hooks extends WRP_Main {
         <?php
 
     }
+
+    /**
+     * Callback for any script enqueue codes in admin
+     */
+    final public function wrp_admin_scripts_enqueue_callback(){
+        //Add admin css
+        wp_enqueue_style('wrp-stylesheet-admin', WRP_ABSURL . 'assets/css/admin.css', array(), WRP_VERSION);
+    }
+
+    
+    /**
+     * Callback for any script enqueue codes in public
+     */
+    final public function wrp_scripts_enqueue_callback(){
+
+        //Add the WRP stylesheet
+        wp_enqueue_style('wrp-stylesheet-public', WRP_ABSURL . 'assets/css/style.css', array(), WRP_VERSION);
+
+        //Add the Wordpress Dashicons
+        wp_enqueue_style( 'dashicons' );
+
+        //Add the WRP script js file
+        // wp_enqueue_script('wrp-script-public', WRP_ABSURL . 'assets/js/script.js', array(), WRP_VERSION, true);
+        // wp_localize_script( 'wrp-script-public', 'ajax_obj', array( 'ajaxurl' => admin_url( 'admin-ajax.php' )));
+        wp_register_script( 'wrp-script-public', WRP_ABSURL . 'assets/js/script.js', array(),WRP_VERSION, true );
+        wp_localize_script( 'wrp-script-public', 'ajax_obj', array( 'ajax_url' => admin_url( 'admin-ajax.php' )));
+        // wp_localize_script('WRP', 'ajax_object',array(
+        //         'ajax_url' => esc_url( admin_url( 'admin-ajax.php' ) ),
+        //         'hide_notice_nonce' => wp_create_nonce( 'hide-notice' )
+        //     )
+        // );
+         wp_enqueue_script( 'wrp-script-public' );
+
+    }
+
+    
+
+    /**
+    *
+    * Adds a custom text link on product archive page
+    * param str $content - Current text
+    * param WC_Product $product
+    * return str $content - Custom or current text
+    */
+
+   final public function wrp_custom_loop_add_to_cart( $content, $product ) {
+
+        if ( ! $product ) return;
+
+        if( $this->is_rental_product($product->id) ){
+
+            $product_id = is_callable( array( $product, 'get_id' ) ) ? $product->get_id() : $product->id;
+
+            $link    = get_permalink( $product_id );
+            $label   = apply_filters( 'wrp_product_add_to_cart_text','Select date(s)', $product );
+            $content = apply_filters(
+                'wrp_loop_add_to_cart_link',
+                '<a href="' . esc_url( $link ) . '" rel="nofollow" class="button">' . esc_html( $label  ) . '</a>',
+                $product
+            );
+            
+        }
+        
+        return $content;
+    }
+
+    /** @Hide from different product type group */
+    final public function wrp_remove_all_quantity_fields( $return, $product ) {
+        if( $this->is_rental_product($product->id) ){
+            return true;
+        }
+    }   
 
     /**
      * Callback method for the action hook after the:
@@ -198,6 +251,58 @@ class WRP_Hooks extends WRP_Main {
         return $array;
     }
 
+     /**
+     * Callback for filter method on product post type column viewable in WP Dashboard -> All products
+     */
+    final public function wrp_get_new_price(){
+        $endpoint = get_option('endpoint_url'); 
+        $post_url = $endpoint.'/calcPrices';  
+        extract($_POST);
+        $start_arr  = explode(' ', $startDate);
+        $start          =   $start_arr[0].'T'.$start_arr[1];
+
+        $end_arr  = explode(' ', $endDate);
+        $end          =   $end_arr[0].'T'.$end_arr[1];
+
+        $body = array( 'items' => array(array('start' => $start,
+                        'end'=>$end,
+                        'sku' => $product_sku,
+                        'qty' => '1')));
+
+        $request = new WP_Http();
+        $response = $request->post( $post_url, array( 'body' => json_encode($body) ) ); 
+
+        // $response['response']['code'] = 200;
+        if($response['response']['code'] == 200){
+            // process responce here..
+        /* $response['body'] ='{
+                          "items": [
+                            {
+                              "start": "2019-05-02T05:00:00.000Z",
+                              "end": "2019-05-07T11:59:00.000Z",
+                              "sku": "GD3",
+                              "qty": 1,
+                              "dur": 13.00,
+                              "periodCode": "Day",
+                              "periodName": "Day",
+                              "amount": 195.00,
+                              "avQty": 5
+                            }
+                          ]
+                        }';*/
+            
+            $price_array = json_decode($response['body']);
+            $rentalPrice = $price_array->items[0];
+    
+            echo '<p class="rental_details">Total Rental duration: '.$rentalPrice->dur.' '.$rentalPrice->periodName.'</p>
+                 <p class="rental_price">'.wc_price($rentalPrice->amount).'</p>'; 
+        }
+        else{
+            echo 'Somthing went wrong Please try again later.';
+        }
+        die; //preventing from returning 0 in as result.
+    }
+
     /**
      * Callback for filter method on product post type column viewable in WP Dashboard -> All products
      */
@@ -266,16 +371,17 @@ class WRP_Hooks extends WRP_Main {
             if( $this->is_rental_product($cart_item['product_id']) ){
 
                 //Get date range whether it was set or is empty
-                $wrp_date_range = $cart_item['wrp_date_range'];
+                // $wrp_date_range = $cart_item['wrp_date_range'];
 
                 //Set date range
                 $date_start = (!empty($wrp_date_range) && !empty($wrp_date_range['date_start'])) ? $wrp_date_range['date_start'] : '';
                 $date_end = (!empty($wrp_date_range) && !empty($wrp_date_range['date_end'])) ? $wrp_date_range['date_end'] : '';
 
-                //Render the date range content
-                if( $counter == 0 ){
 
-                    echo '
+                //Render the date range content
+                // if( $counter == 0 ){
+
+                   /* echo '
                     <tr class="wrp_date_range_row">
                         <td></td>
                         <td></td>
@@ -289,18 +395,18 @@ class WRP_Hooks extends WRP_Main {
                             <input type="hidden" name="wrp_date_end" value="' . $date_end . '"/>
                         </td>
                     </tr>
-                    ';
+                    ';*/
 
-                    $counter++;
+                    // $counter++;
 
-                }
+                // }
 
                 //Get the product data
                 $_product   = apply_filters( 'woocommerce_cart_item_product', $cart_item['data'], $cart_item, $cart_item_key );
                 $product_id = apply_filters( 'woocommerce_cart_item_product_id', $cart_item['product_id'], $cart_item, $cart_item_key );
 
                 //Now begin rendering the rental products the Woocommerce way
-                if( $_product && $_product->exists() && $cart_item['quantity'] > 0 ){
+                if($_product && $_product->exists() && $cart_item['quantity'] > 0 ){
                     include WRP_TEMPLATE_DIR . 'cart-rental-products.php';
                 }
                 
@@ -336,7 +442,7 @@ class WRP_Hooks extends WRP_Main {
         if( $this->is_rental_product($product_id) ){
 
             //Check if rental price plan is choosen. Otherwise, throw an error.
-            if( empty($_POST['rental_price']) ){
+            if( empty($_POST['wrp_date_range']) ){
                 wc_add_notice('Please make a selection.', 'error');
                 return false;
             }
@@ -353,10 +459,15 @@ class WRP_Hooks extends WRP_Main {
      * @param product_id
      */
     final public function wrp_add_cart_item_data( $cart_item_data, $product_id ){
-        
+        // echo "<pre>";print_r($cart_item_data);echo "</pre>";
         //Only for rental product types
         if( $this->is_rental_product($product_id) ){
-            $cart_item_data['rental_period_code'] = $_POST['rental_price'];
+            $cart_item_data['wrp_date_range']['date_start'] = $_POST['wrp_date_start'];
+            $cart_item_data['wrp_date_range']['date_end'] = $_POST['wrp_date_end'];
+
+            $cart_item_data['date_start'] = $_POST['wrp_date_start'];
+            $cart_item_data['date_end'] = $_POST['wrp_date_end'];
+
         }
 
         return $cart_item_data;
@@ -372,16 +483,19 @@ class WRP_Hooks extends WRP_Main {
     final public function wrp_get_cart_item_from_session( $session_data, $values, $key ){
 
         //Store the rental price session to the cart object
-        if( $this->is_rental_product($values['product_id']) && array_key_exists('rental_period_code', $values) && !isset($_POST['wrp_date_range']) && !isset($_POST['wrp_date_start']) && !isset($_POST['wrp_date_end']) ){
-            $session_data['rental_period_code'] = $values['rental_period_code'];
-        }
+        // if( $this->is_rental_product($values['product_id']) && array_key_exists('rental_period_code', $values) && !isset($_POST['wrp_date_range']) && !isset($_POST['wrp_date_start']) && !isset($_POST['wrp_date_end']) ){
+        //     $session_data['rental_period_code'] = $values['rental_period_code'];
+        // }
 
         //Do this for cart update scenario
         if( $this->is_rental_product($values['product_id']) && isset($_POST['wrp_date_range']) && isset($_POST['wrp_date_start']) && isset($_POST['wrp_date_end']) ){
-            $session_data['wrp_date_range'] = array(
-                'date_start' => sanitize_text_field($_POST['wrp_date_start']),
-                'date_end' => sanitize_text_field($_POST['wrp_date_end'])
-            );
+            // $session_data['wrp_date_range'] = array(
+            //     'date_start' => sanitize_text_field($_POST['wrp_date_start']),
+            //     'date_end' => sanitize_text_field($_POST['wrp_date_end'])
+            // );
+
+            $session_data['date_start'] = sanitize_text_field($_POST['wrp_date_start']);
+            $session_data['date_end'] = sanitize_text_field($_POST['wrp_date_end']);
         }
 
         return $session_data;
@@ -400,34 +514,21 @@ class WRP_Hooks extends WRP_Main {
             //Only do this for rental products
             if( $this->is_rental_product($value['product_id']) ){
 
-                //Get the rental price based on the rental period code
-                $rental_price = $this->get_rental_price($value['product_id'], $value['rental_period_code']);
+                //Get the rental price using flow2b API
+                $rental_price = $this->call_rental_price_api($value);
 
                 //Check if rental price array is empty
-                if(empty($rental_price)){
+                if(empty($rental_price->amount)){
                     return;
                 }
 
-				//Default price value
-				$price = 0;
+                //Default price value
+                $price = 0;
 
-                //Get regular price and sale price
-                $regular_price = $rental_price['regular_price'];
-                $sale_price = $rental_price['sale_price'];
-
-				//For regular price
-				if( !empty($regular_price) ){
-					$price = $regular_price;
-				}
-
-				//When regular price and sale price are both present
-				if( !empty($regular_price) && !empty($sale_price) ){
-                    
-					if( floatval($regular_price) > floatval($sale_price) ){
-						$price = $sale_price;
-					}
-                    
-				}
+                //For price
+                if( !empty($rental_price->amount) ){
+                    $price = $rental_price->amount;
+                }
 
                 //Set and override the product price
                 $value['data']->set_price($price);
@@ -452,16 +553,13 @@ class WRP_Hooks extends WRP_Main {
         //Only do this for rental products
         if($this->is_rental_product($cart_item['product_id'])){
 
-            //Get rental price array
-            $rental_price = $this->get_rental_price($cart_item['product_id'], $cart_item['rental_period_code']);
+             //Get rental price array
+            $rental_price_api_res = $this->call_rental_price_api($cart_item); 
 
-            //Render regular price vs sale price accordingly
-            if( $rental_price['regular_price'] > $rental_price['sale_price'] ){
-                return '<span class="cart_rental_price"><del>' . wc_price($rental_price['regular_price']) . '</del> ' . $price . '</span>';
-            }
-
-            return '<span>' . $price . '</span>';
-
+            if(!empty($rental_price_api_res)){
+                return '<span> ' .wc_price($rental_price_api_res->amount/$rental_price_api_res->dur) . '</span>';
+            }            
+          
         }
         
         return $price;
@@ -478,26 +576,43 @@ class WRP_Hooks extends WRP_Main {
         //Do this for rental products
         if($this->is_rental_product($cart_item['product_id'])){
 
-            //Get rental price array
-            $rental_price = $this->get_rental_price($cart_item['product_id'], $cart_item['rental_period_code']);
+            if(isset($cart_item['wrp_date_range'])){
+                $wrp_date_range = $cart_item['wrp_date_range'];
+                $start = $cart_item['wrp_date_range']['date_start'];
+                $end =  $cart_item['wrp_date_range']['date_end'];
+            }else{
+                $start = date('Y-m-d  h:i A') ;
+                $end = date("Y-m-d", strtotime("+ 1 day"));
+            }
             
+            $rental_price_api_res = $this->call_rental_price_api($cart_item);
+            $rate =  $rental_price_api_res->amount / $rental_price_api_res->dur;
+
             //Set the key and value for rental rate
             $item_data[] = array(
                 'key' => 'Rate',
-                'value' => WC()->cart->get_product_price( $cart_item['data'] ) . ' / ' . $rental_price['period_name']
+                'value' => '$'.$rate . ' / ' . $rental_price_api_res->periodName
             );
+
+            //Set key and value for Duration
+            $item_data[] = array(
+                'key' => 'Duration',
+                'value' => ''.$rental_price_api_res->dur . ' ' . $rental_price_api_res->periodName
+            );      
 
             //Set key and value for Date Start
             $item_data[] = array(
                 'key' => 'From',
-                'value' => date('M d, Y h:i A', strtotime($cart_item['wrp_date_range']['date_start']))
+                // 'value' => date('M d, Y h:i A', strtotime($cart_item['date_start']))
+                'value' => date('M d, Y h:i A', strtotime($rental_price_api_res->start))
             );
 
             //Set key and value for Date End
             $item_data[] = array(
                 'key' => 'To',
-                'value' => date('M d, Y h:i A', strtotime($cart_item['wrp_date_range']['date_end']))
-            );
+                // 'value' => date('M d, Y h:i A', strtotime($cart_item['date_end']))
+                'value' => date('M d, Y h:i A', strtotime($rental_price_api_res->end))
+            );                     
 
         }
 
@@ -511,12 +626,12 @@ class WRP_Hooks extends WRP_Main {
      * @param value
      */
     final public function wrp_add_order_item_meta( $item_id, $value){
-
-        //Only do this for rental products with rental_period_code and wrp_date_range metakey
+        //Only do this for rental products with wrp_date_range metakey
         $wrp_date_range = $value['wrp_date_range'];
         if(!empty($wrp_date_range) && $this->is_rental_product($value['product_id'])){
             $wrp_date_range['product_id'] = $value['product_id'];
-            $wrp_date_range['rental_price_array'] = $this->get_rental_price($value['product_id'], $value['rental_period_code']);
+            // $wrp_date_range['rental_price_array'] = $this->get_rental_price($value['product_id'], $value['rental_period_code']);
+            $wrp_date_range['rental_price_array'] = $this->call_rental_price_api($value);
             wc_add_order_item_meta($item_id, 'wrp_date_range', $wrp_date_range);
         }
 
@@ -549,9 +664,10 @@ class WRP_Hooks extends WRP_Main {
      * @param order
      */
     final public function wrp_order_item_meta_start($item_id, $item, $order){
-
+        // echo "wrp_order_item_meta_start";
+        $product_id = $item->get_data()['product_id'];
         //Only do this for rental products
-        if(!$this->is_rental_product( $item->get_data()['product_id'] )){
+        if(!$this->is_rental_product( $product_id )){
             return;
         }
 
@@ -568,7 +684,7 @@ class WRP_Hooks extends WRP_Main {
                 $product_data_metadata = $product_data['value'];
 
                 //Render the rental product metadata
-                echo $this->render_rental_metadata($product_data_metadata);
+                echo $this->render_rental_metadata($product_id,$product_data_metadata);
 
             }
 
@@ -583,12 +699,15 @@ class WRP_Hooks extends WRP_Main {
      * @param product
      */
     final public function wrp_before_order_itemmeta($item_id, $item, $product){
+        // echo "wrp_before_order_itemmeta"; 
+   // https://arboleaf.com  
+         $product_id = $item->get_data()['product_id'];
 
         //Get the rental products order item metadata
         $rental_price_meta = wc_get_order_item_meta($item_id, 'wrp_date_range');
 
         //Render the rental product metadata
-        echo $this->render_rental_metadata($rental_price_meta);
+        echo $this->render_rental_metadata($product_id,$rental_price_meta);
 
     }
 
