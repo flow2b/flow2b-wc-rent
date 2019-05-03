@@ -2,7 +2,7 @@
 /**
  * Plugin Name:  WooCommerce Rental Products
  * Plugin URI:   https://virson.wordpress.com/
- * Description:  A WooCommerce plugin extension that extends the REST API to enable Rental product types. Custom fields are also added to the product editor.
+ * Description:  A WooCommerce plugin extension that extends the REST API to enable Rental product types. Custom fields are also added to the product editor. Additional Endpoint for Rental Price API setting.
  * Version:      1.0.0
  * Author:       Virson Ebillo
  * Author URI:   https://virson.wordpress.com/
