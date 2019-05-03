@@ -43,7 +43,8 @@ jQuery(function () {
 
       //Set initial values
       startDate = (jQuery('input[name="wrp_date_start"]').val() == '') ? moment().startOf('hour') : jQuery('input[name="wrp_date_start"]').val();
-      endDate = (jQuery('input[name="wrp_date_end"]').val() == '') ? moment().startOf('hour').add(32, 'hour') : jQuery('input[name="wrp_date_end"]').val();
+      endDate = (jQuery('input[name="wrp_date_end"]').val() == '') ? moment().startOf('hour') : jQuery('input[name="wrp_date_end"]').val();
+      // endDate = (jQuery('input[name="wrp_date_end"]').val() == '') ? moment().startOf('hour').add(32, 'hour') : jQuery('input[name="wrp_date_end"]').val();
       
       jQuery('input[name="wrp_date_range"]').daterangepicker(
         {
@@ -61,7 +62,7 @@ jQuery(function () {
         }, function (start, end) {
           
           //Set the input fields
-          jQuery('input[name="wrp_date_range"]').val(start.format('YYYY-MM-DD')+' - '+end.format('YYYY-MM-DD hh:mm A'));
+          jQuery('input[name="wrp_date_range"]').val(start.format('YYYY-MM-DD hh:mm A')+' - '+end.format('YYYY-MM-DD hh:mm A'));
           jQuery('input[name="wrp_date_start"]').val(start.format('YYYY-MM-DD hh:mm A'));
           jQuery('input[name="wrp_date_end"]').val(end.format('YYYY-MM-DD hh:mm A'));   
 
