@@ -58,12 +58,18 @@ tr.wrp_date_range_row span.dashicons-calendar-alt {
 form.woocommerce-cart-form .cart_rental_price del {
     opacity: 0.5;
 }
+.rental_price_detials{
+    padding-top: 25px;
+}
+.wrp_date_range{
+    width: 73%;
+}
+.daterangepicker .drp-calendar.left {
+    max-width: 70%;
+}
 /*
 .variation-From p, .variation-To p {
     width: 100%;
     display: inline-block;
 }
 */
-.rental_price_detials{
-    padding-top: 25px;
-}
