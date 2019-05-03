@@ -83,6 +83,9 @@ class WRP_Main {
 		//REST API extension class
 		include_once WRP_ABSPATH . 'includes/class-wrp-rest.php';
 
+		//Flow2b API setting
+		include_once WRP_ABSPATH . 'includes/api_setting.php';
+
 		//Our hooks class
 		include_once WRP_ABSPATH . 'includes/class-wrp-hooks.php';
 
@@ -215,9 +218,7 @@ class WRP_Main {
 		$string = '';
 
 		//Begin formatting to HTML
-		if( !empty($data) ){
-
-			$string = '<ul class="rental_option_list">';
+		if( !empty($data) ){			
 
 			//Begin iterables
 			foreach($data as $index => $value){
@@ -252,27 +253,42 @@ class WRP_Main {
 
 					//Do this if we want to only show the first item of the loop
 					if( $first_item ){
+						$string = '<ul class="rental_option_list">';
 						$string .= '
 							<li>
 								<span class="price">' . ((!empty($price_dropped)) ? '<del>' . wc_price( $price_dropped ) . '</del> ' : '') . wc_price( $price ) . ' ' . $value['period_name'] . '</span>
 							</li>
 						';
+
+						$string .= '</ul>';
 						 break;
 					}
 
-					$string .= '
-						<li>
-							<label>
-								<input type="radio" name="rental_price" value="' . $value['period_code'] . '"/>
-								<span class="price">' . ((!empty($price_dropped)) ? '<del>' . wc_price( $price_dropped ) . '</del> ' : '') . wc_price( $price ) . '</span> ' . $value['period_name'] . '
-							</label>
-						</li>
-					';
+					// $string .= '
+					// 	<li>
+					// 		<label>
+					// 			<input type="radio" name="rental_price" value="' . $value['period_code'] . '"/>
+					// 			<span class="price">' . ((!empty($price_dropped)) ? '<del>' . wc_price( $price_dropped ) . '</del> ' : '') . wc_price( $price ) . '</span> ' . $value['period_name'] . '
+					// 		</label>
+					// 	</li>
+					// ';
 				}
 
 			}
 
-			$string .= '</ul>';
+			if( !$first_item ){
+				global $product;
+				$product_sku = $product->sku;
+				$string .= '<div>';
+				$string .= '<span class="dashicons dashicons-calendar-alt"></span>
+	                            <input id="wrp_date_range" class="wrp_date_range" type="text" name="wrp_date_range" placeholder="From -- To" autocomplete="off"/>
+	                           <input type="hidden" id="wrp_date_start" name="wrp_date_start" value=""/>
+	                           <input type="hidden" id="wrp_date_end" name="wrp_date_end" value=""/>
+	                           <input type="hidden" id="product_sku"  name="product_sku"  value = "'.$product_sku.'"/> 
+	                            '; 
+	            $string .= '</div> <div class="rental_price_detials"></div>';
+        	}
+
 
 		}
 
@@ -299,6 +315,65 @@ class WRP_Main {
 
 		return false;
 		
+	}
+
+	/**
+	*Call the flow2b rental price API
+	**/
+	final public function call_rental_price_api($cart_item): object {
+		$product_id = $cart_item['product_id'];
+		$sku = get_post_meta( $product_id, '_sku', true );
+		$itemsQuantity = $cart_item['quantity'];
+		// echo "<pre>";print_r($cart_item);echo "</pre>";
+		if(isset($cart_item['wrp_date_range'])){
+			$wrp_date_range = $cart_item['wrp_date_range'];
+			$start_arr 		=	explode(' ',$wrp_date_range['date_start']); 
+			$start 			=	$start_arr[0].'T'.$start_arr[1];
+			$end_arr 		=	explode(' ',$wrp_date_range['date_end']); 
+			$end 			= 	$end_arr[0].'T'.$end_arr[1];
+		}else{
+			$start 	= date('Y-m-d') ;
+			$end 	= date("Y-m-d", strtotime("+ 1 day"));
+		}
+			
+		$endpoint = get_option('endpoint_url'); 
+		$post_url = $endpoint.'/calcPrices';	
+		$body = array( 'items' => array(array('start' => $start,
+						'end'=>$end,
+						'sku' => $sku,
+						'qty' => ''.$itemsQuantity.'')));
+
+	    $request = new WP_Http();
+	    $response = $request->post( $post_url, array( 'body' => json_encode($body) ) );	 
+	    // $response['response']['code'] = 200;
+	    if($response['response']['code'] == 200){
+	    	// process responce here..
+	    	/*$response['body'] ='
+			  	{
+				  "items": [
+				    {
+				      "start": "2019-05-01T07:00:00.000Z",
+				      "end": "2019-05-07T03:00:00.000Z",
+				      "sku": "GD3",
+				      "qty": 1,
+				      "dur": 14.00,
+				      "periodCode": "Day",
+				      "periodName": "Day",
+				      "amount": 210.00,
+				      "avQty": 5
+				    }
+				  ]
+				}
+			';*/
+
+			
+			$price_array = json_decode($response['body']);
+			$rentalPrice = $price_array->items[0];
+			return  $rentalPrice;
+	    }
+	    else{
+	    	return (object) array();
+	    }	
 	}
 
 	/**
@@ -329,43 +404,27 @@ class WRP_Main {
 	 * To: Date Time
 	 * @param metadata
 	 */
-	final public function render_rental_metadata($metadata): string {
-
-        //Quick check
-        if(!empty($metadata) && $this->is_rental_product($metadata['product_id'])){
-
+	final public function render_rental_metadata($product_id,$metadata): string {
+		//Quick check
+		$rental_price = array();
+		$date_data = array();
+      
+         if($this->is_rental_product($product_id)){
             //Get rental price array
-            $rental_price = $metadata['rental_price_array'];
 
-            //Default price value
-            $price = 0;
-
-            //Get regular price and sale price
-            $regular_price = $rental_price['regular_price'];
-            $sale_price = $rental_price['sale_price'];
-
-            //For regular price
-            if( !empty($regular_price) ){
-                $price = $regular_price;
-            }
-
-            //When regular price and sale price are both present
-            if( !empty($regular_price) && !empty($sale_price) ){
-                
-                if( floatval($regular_price) > floatval($sale_price) ){
-                    $price = $sale_price;
-                }
-                
-            }
+            $rental_price_array = $metadata['rental_price_array'];
+            $price = $rental_price_array->amount / $rental_price_array->dur;
 
             //Render the metadata
             return '
-                <dt><p><b>Rate:</b> ' . wc_price($price) . ' / ' . $rental_price['period_name']. '</p></dt>
-                <dt><p><b>From:</b> ' . date('M d, Y h:i A', strtotime($metadata['date_start'])) . '</p></dt>
-                <dt><p><b>To:</b> ' . date('M d, Y h:i A', strtotime($metadata['date_end'])) . '</p></dt>
+                <dt><p><b>Rate:</b> ' . wc_price($price) . ' / ' . $rental_price_array->periodName. '</p></dt>
+                <dt><p><b>Duration:</b> ' . $rental_price_array->dur. ' '.$rental_price_array->periodName.'</p></dt>
+                <dt><p><b>From:</b> ' . date('M d, Y h:i A', strtotime($rental_price_array->start)) . '</p></dt>
+                <dt><p><b>To:</b> ' . date('M d, Y h:i A', strtotime($rental_price_array->end)) . '</p></dt>
             ';
 
-		}
+		
+	}
 		
 		return '';
 
