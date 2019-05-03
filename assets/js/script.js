@@ -58,11 +58,29 @@ jQuery(function () {
             format: 'YYYY-MM-DD hh:mm A'
           }
         }, function (start, end) {
-
+          
           //Set the input fields
           jQuery('input[name="wrp_date_start"]').val(start.format('YYYY-MM-DD hh:mm A'));
-          jQuery('input[name="wrp_date_end"]').val(end.format('YYYY-MM-DD hh:mm A'));
+          jQuery('input[name="wrp_date_end"]').val(end.format('YYYY-MM-DD hh:mm A'));   
 
+          /* call API for rental price On date select*/  
+          var ajax_url      =  ajax_obj.ajax_url;
+          var product_sku   =  jQuery('#product_sku').val();
+            jQuery.ajax({
+            url: ajax_url ,
+            type: 'POST',
+            data: {
+                   action : 'add_new_price', 
+                   startDate : start.format('YYYY-MM-DD hh:mm A'),
+                   endDate : end.format('YYYY-MM-DD hh:mm A'),
+                   product_sku : product_sku,
+                 },
+            success: function(result_data){         
+               jQuery('.rental_price_detials').html(result_data);
+               return false;  
+            }
+          });
+          
         }
       );
 
