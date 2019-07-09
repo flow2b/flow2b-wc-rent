@@ -1,0 +1,75 @@
+ul.rental_option_list {
+    list-style-type: none!important;
+}
+ul.rental_option_list li {
+    border-bottom: 1px solid #dddddd;
+    padding: 5px 0;
+}
+ul.rental_option_list li:last-child {
+    border-bottom: none;
+}
+ul.rental_option_list li label {
+    font-weight: 600;
+    cursor: pointer;
+}
+ul.rental_option_list li label span.price del {
+    text-decoration-color: #555555;
+}
+ul.rental_option_list li label span.price del span {
+    color: #555555;
+}
+ul.products ul.rental_option_list, ul.products ul.rental_option_list li {
+    padding: 0!important;
+    margin: 0!important;
+    border: none;
+}
+.wrp-btn {
+    padding: 8px;
+    border-radius: 3px;
+    box-shadow: #dddddd 0 3px 3px;
+    -webkit-box-shadow: #dddddd 0 3px 3px;
+    -moz-box-shadow: #dddddd 0 3px 3px;
+    -ms-box-shadow: #dddddd 0 3px 3px;
+    display: block;
+    text-align: center;
+    cursor: pointer;
+}
+.wrp-btn:hover {
+    opacity: 0.85;
+}
+.wrp-btn.wrp-btn-primary {
+    background-color: #2196F3;
+    border: 1px solid #1584dc;
+    color: #ffffff;
+}
+.woocommerce-cart table.cart input[name="wrp_date_range"] {
+    max-width: 96%;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 7px 7px 7px 30px;
+    font-size: 14px;
+}
+tr.wrp_date_range_row span.dashicons-calendar-alt {
+    margin-right: -30px;
+    top: 6px;
+    z-index: 99;
+    position: relative;
+}
+form.woocommerce-cart-form .cart_rental_price del {
+    opacity: 0.5;
+}
+.rental_price_detials{
+    padding-top: 25px;
+}
+.wrp_date_range{
+    width: 73%;
+}
+.daterangepicker .drp-calendar.left {
+    max-width: 70%;
+}
+/*
+.variation-From p, .variation-To p {
+    width: 100%;
+    display: inline-block;
+}
+*/
